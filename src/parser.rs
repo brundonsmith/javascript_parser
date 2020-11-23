@@ -473,12 +473,12 @@ mod parse {
                 let second = identifier(code, index)?;
 
                 let mut path = vec![
-                    PathSegment::Property { property: first, optional: false },
-                    PathSegment::Property { property: second, optional: false },
+                    PathSegment { property: first, optional: false },
+                    PathSegment { property: second, optional: false },
                 ];
                 
                 while try_eat(code, index, ".").is_ok() {
-                    path.push(PathSegment::Property {
+                    path.push(PathSegment {
                         property: identifier(code, index)?,
                         optional: false
                     });
@@ -869,9 +869,9 @@ mod tests {
         assert_eq!(parse(code), Ok(
             AST::Block(vec![
                 AST::PropertyPath(vec![
-                    PathSegment::Property { property: identifier("a"), optional: false },
-                    PathSegment::Property { property: identifier("b"), optional: false },
-                    PathSegment::Property { property: identifier("c"), optional: false },
+                    PathSegment { property: identifier("a"), optional: false },
+                    PathSegment { property: identifier("b"), optional: false },
+                    PathSegment { property: identifier("c"), optional: false },
                 ])
             ])
         ))
@@ -927,8 +927,8 @@ mod tests {
             AST::Block(vec![
                 AST::FunctionCall {
                     func: Box::new(AST::PropertyPath(vec![
-                        PathSegment::Property { property: identifier("a"), optional: false },
-                        PathSegment::Property { property: identifier("b"), optional: false },
+                        PathSegment { property: identifier("a"), optional: false },
+                        PathSegment { property: identifier("b"), optional: false },
                     ])),
                     args: vec![ identifier("b"), identifier("c") ],
                 }
@@ -1255,8 +1255,8 @@ mod tests {
 
                                 AST::FunctionCall {
                                     func: Box::new(AST::PropertyPath(vec![
-                                        PathSegment::Property { property: identifier("fibSequence"), optional: false },
-                                        PathSegment::Property { property: identifier("push"), optional: false },
+                                        PathSegment { property: identifier("fibSequence"), optional: false },
+                                        PathSegment { property: identifier("push"), optional: false },
                                     ])),
                                     args: vec![
                                         identifier("currentValue"),

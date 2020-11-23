@@ -2,9 +2,9 @@
 use std::{hash::Hash, collections::HashMap};
 
 #[derive(Debug,Clone,PartialEq,PartialOrd,Hash)]
-pub enum PathSegment {
-    Index { optional: bool, index: AST },
-    Property { optional: bool, property: AST },
+pub struct PathSegment {
+    pub optional: bool,
+    pub property: AST,
 }
 
 impl Eq for PathSegment { }
@@ -23,6 +23,13 @@ impl DeclarationKind {
             "let" => DeclarationKind::Let,
             "var" => DeclarationKind::Var,
             _ => panic!("Cannot derive a DeclarationKind from string '{}'", s),
+        }
+    }
+    pub fn to_keyword(&self) -> &'static str {
+        match self {
+            DeclarationKind::Var => "var",
+            DeclarationKind::Let => "let",
+            DeclarationKind::Const => "const",
         }
     }
 }
