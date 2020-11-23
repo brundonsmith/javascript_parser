@@ -2,10 +2,15 @@
 use crate::parser_model::AST;
 use crate::parser_utils::ParseError;
 
-const KEYWORDS: [&str;31] = ["const", "var", "let", "function", "class", "null", 
-"undefined", "import", "export", "return", "break", "case", "continue", "for", 
-"while", "if", "else", "of", "in", "instanceof", "new", "debugger", "throw", 
-"try", "catch", "yield", "module", "typeof", "void", "async", "await"];
+const KEYWORDS: [&str;63] = ["abstract", "arguments", "boolean", "break", 
+"byte", "case", "catch", "char", "const", "continue", "debugger", "default", 
+"delete", "do", "double", "else", "eval", "false", "final", "finally", "float", 
+"for", "function", "goto", "if", "implements", "in", "instanceof", "int", 
+"interface", "let", "long", "native", "new", "null", "package", "private", 
+"protected", "public", "return", "short", "static", "switch", "synchronized", 
+"this", "throw", "throws", "transient", "true", "try", "typeof", "var", "void", 
+"volatile", "while", "with", "yield", "class", "enum", "export", "extends", 
+"import", "super"];
 
 
 pub fn parse(code: &str) -> Result<AST, ParseError> {
@@ -20,15 +25,14 @@ pub fn parse(code: &str) -> Result<AST, ParseError> {
 }
 
 mod parse {
-    use crate::{parser_model::AST, parser_utils::{ParseError, consume_whitespace, try_eat, try_eat_while}};
+    use crate::{parser_model::AST, parser_utils::{ParseError, try_eat, try_eat_while}};
 
     use super::KEYWORDS;
 
     pub fn statement_or_expression(code: &str, index: &mut usize) -> Result<AST, ParseError> {
         let res = statement::statement(code, index)
             .or_else(|_| expression::expression(code, index));
-        //let _123 = "hello";
-        // consume_whitespace(code, index, false);
+
         try_eat(code, index, ";").ok();
 
         return res;
@@ -146,7 +150,8 @@ mod parse {
         use super::{identifier, indexer, statement_or_expression};
 
         pub fn expression(code: &str, index: &mut usize) -> Result<AST, ParseError> {
-            let expr = operation(code, index, OPERATOR_TIERS.len() - 1);
+            let expr = arrow_function(code, index) // arrow_function() has to go before parenthesized()
+                .or_else(|_| operation(code, index, OPERATOR_TIERS.len() - 1));
 
             // function call
             if let Ok(expr) = expr {
@@ -281,12 +286,7 @@ mod parse {
                 let name = identifier(code, index).ok().map(Box::new);
     
                 try_eat(code, index, "(")?;
-                let mut args = Vec::new();
-                // TODO: Rest parameters and default arg values
-                while let Ok(arg_name) = identifier(code, index) {
-                    args.push(arg_name);
-                    try_eat(code, index, ",").ok();
-                }
+                let args = _function_args(code, index)?;
                 try_eat(code, index, ")")?;
     
                 try_eat(code, index, "{")?;
@@ -304,7 +304,55 @@ mod parse {
         }
     
         fn arrow_function(code: &str, index: &mut usize) -> Result<AST, ParseError> {
-            todo!()
+            let original_index = *index;
+
+            let args = _arrow_function_args_and_arrow(code, index);
+
+            match args {
+                Ok(args) => {
+                    let body = Box::new(statement_or_expression(code, index)?);
+
+                    Ok(AST::Function {
+                        name: None,
+                        args,
+                        body,
+                        is_arrow_function: true,
+                    })
+                },
+                Err(e) => {
+                    *index = original_index;
+                    Err(ParseError::new(code, *index, "Expected arrow function"))
+                },
+            }
+        }
+
+        fn _arrow_function_args_and_arrow(code: &str, index: &mut usize) -> Result<Vec<AST>, ParseError> {
+            if let Ok(arg) = identifier(code, index) {
+                if try_eat(code, index, "=>").is_ok() {
+                    return Ok(vec![ arg ]);
+                }
+            } else if try_eat(code, index, "(").is_ok() {
+                let args = _function_args(code, index)?;
+                try_eat(code, index, ")")?;
+
+                if try_eat(code, index, "=>").is_ok() {
+                    return Ok(args);
+                }
+            }
+
+            Err(ParseError::new(code, *index, "Expected arrow function"))
+        }
+
+        fn _function_args(code: &str, index: &mut usize) -> Result<Vec<AST>, ParseError> {
+            let mut args = Vec::new();
+
+            // TODO: Rest parameters and default arg values
+            while let Ok(arg_name) = identifier(code, index) {
+                args.push(arg_name);
+                try_eat(code, index, ",").ok();
+            }
+
+            return Ok(args);
         }
     
         fn undefined(code: &str, index: &mut usize) -> Result<AST, ParseError> {
@@ -914,6 +962,103 @@ mod tests {
                         AST::ReturnStatement(Some(intb(12)))
                     ])),
                     is_arrow_function: false,
+                }
+            ])
+        ))
+    }
+
+    #[test]
+    fn test_arrow_function_1() {
+        let code = "(a) => a + 2";
+
+        assert_eq!(parse(code), Ok(
+            AST::Block(vec![
+                AST::Function {
+                    name: None,
+                    args: vec![
+                        identifier("a"),
+                    ],
+                    body: Box::new(AST::BinaryOperation {
+                        operator: "+",
+                        left: identifierb("a"),
+                        right: intb(2),
+                    }),
+                    is_arrow_function: true,
+                }
+            ])
+        ))
+    }
+
+    #[test]
+    fn test_arrow_function_2() {
+        let code = "a => a + 2";
+
+        assert_eq!(parse(code), Ok(
+            AST::Block(vec![
+                AST::Function {
+                    name: None,
+                    args: vec![
+                        identifier("a"),
+                    ],
+                    body: Box::new(AST::BinaryOperation {
+                        operator: "+",
+                        left: identifierb("a"),
+                        right: intb(2),
+                    }),
+                    is_arrow_function: true,
+                }
+            ])
+        ))
+    }
+
+    #[test]
+    fn test_arrow_function_3() {
+        let code = "(a, b,) => a + 2";
+
+        assert_eq!(parse(code), Ok(
+            AST::Block(vec![
+                AST::Function {
+                    name: None,
+                    args: vec![
+                        identifier("a"),
+                        identifier("b"),
+                    ],
+                    body: Box::new(AST::BinaryOperation {
+                        operator: "+",
+                        left: identifierb("a"),
+                        right: intb(2),
+                    }),
+                    is_arrow_function: true,
+                }
+            ])
+        ))
+    }
+
+    #[test]
+    fn test_arrow_function_4() {
+        let code = "
+        (a, b) => {
+            return a + 2;
+        }";
+
+        assert_eq!(parse(code), Ok(
+            AST::Block(vec![
+                AST::Function {
+                    name: None,
+                    args: vec![
+                        identifier("a"),
+                        identifier("b"),
+                    ],
+                    body: Box::new(AST::Block(vec![
+                        AST::ReturnStatement(Some(
+                            Box::new(AST::BinaryOperation {
+                                operator: "+",
+                                left: identifierb("a"),
+                                right: intb(2),
+                            })
+                        ))
+                    ])),
+                    is_arrow_function: true,
                 }
             ])
         ))
