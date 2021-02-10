@@ -43,6 +43,12 @@ pub enum OperatorSide {
 }
 
 #[derive(Debug,Clone,PartialEq)]
+pub struct ClassProperty {
+    pub getter: Option<Box<AST>>,
+    pub setter: Option<Box<AST>>,
+}
+
+#[derive(Debug,Clone,PartialEq)]
 pub enum AST {
     Undefined,
     Null,
@@ -58,6 +64,14 @@ pub enum AST {
     Indexer(Box<AST>),
     PropertyPath(Vec<PathSegment>),
     Block(Vec<AST>),
+    Class {
+        name: Box<AST>,
+        constructor: Option<Box<AST>>,
+        fields: Vec<AST>,
+        methods: Vec<AST>,
+        properties: HashMap<AST, ClassProperty>,
+    },
+    ClassField { identifier: Box<AST>, expression: Option<Box<AST>> },
     Conditional { condition: Box<AST>, if_body: Box<AST>, else_body: Option<Box<AST>> },
     WhileLoop { condition: Box<AST>, body: Box<AST> },
     UnaryOperation { operator: &'static str, expr: Box<AST>, side: OperatorSide },
@@ -176,6 +190,19 @@ impl Hash for AST {
             AST::Parenthesized(x) => {
                 "AST::ReturnStatement".hash(state);
                 x.hash(state);
+            },
+            AST::Class { name, constructor, fields, methods, properties } => {
+                "AST::Class".hash(state);
+                name.hash(state);
+                constructor.hash(state);
+                fields.hash(state);
+                methods.hash(state);
+                // properties.hash(state); TODO
+            },
+            AST::ClassField { identifier, expression } => {
+                "AST::ClassField".hash(state);
+                identifier.hash(state);
+                expression.hash(state);
             },
         }
     }

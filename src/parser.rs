@@ -146,7 +146,7 @@ mod parse {
     mod expression {
         use std::collections::HashMap;
 
-        use crate::{parser_model::{AST, OperatorSide, PathSegment}, parser_utils::{ParseError, try_eat, try_eat_while}};
+        use crate::{parser_model::{AST, ClassProperty, OperatorSide, PathSegment}, parser_utils::{ParseError, try_eat, try_eat_while}};
         use super::{identifier, indexer, statement_or_expression};
 
         pub fn expression(code: &str, index: &mut usize) -> Result<AST, ParseError> {
@@ -267,6 +267,7 @@ mod parse {
         fn primary(code: &str, index: &mut usize) -> Result<AST, ParseError> {
             number(code, index)
                 .or_else(|_| function(code, index))
+                .or_else(|_| class(code, index))
                 .or_else(|_| boolean(code, index))
                 .or_else(|_| string(code, index))
                 .or_else(|_| null(code, index))
@@ -279,6 +280,68 @@ mod parse {
                     line,
                     column
                 })
+        }
+
+        fn class(code: &str, index: &mut usize) -> Result<AST, ParseError> {
+            try_eat(code, index, "class")?;
+            
+            let name = Box::new(identifier(code, index)?);
+
+            try_eat(code, index, "{")?;
+
+            let mut constructor = None;
+            let mut fields = vec![];
+            let mut methods = vec![];
+            let mut properties: HashMap<AST, ClassProperty> = HashMap::new();
+            while try_eat(code, index, "}").is_err() {
+                if let Ok(field) = _field(code, index) {
+                    fields.push(field);
+                } else if let Ok(method) = _method(code, index) {
+                    // if let AST::Function { name: Some(Box<AST::Identifier(String::from("constructor"))>), args: _, body: _, is_arrow_function: _ } = method {
+                        // TODO
+                    // }
+                    methods.push(method);
+                } else if let Ok((name, getter)) = _getter(code, index) {
+                    if let Some(property) = properties.get_mut(&name) {
+                        property.getter = Some(Box::new(getter));
+                    } else {
+                        properties.insert(name, ClassProperty {
+                            getter: Some(Box::new(getter)),
+                            setter: None,
+                        });
+                    }
+                } else if let Ok((name, setter)) = _setter(code, index) {
+                    if let Some(property) = properties.get_mut(&name) {
+                        property.setter = Some(Box::new(setter));
+                    } else {
+                        properties.insert(name, ClassProperty {
+                            getter: None,
+                            setter: Some(Box::new(setter)),
+                        });
+                    }
+                }
+            }
+
+            Ok(AST::Class {
+                name,
+                constructor,
+                fields,
+                methods,
+                properties
+            })
+        }
+
+        fn _field(code: &str, index: &mut usize) -> Result<AST, ParseError> {
+            todo!()
+        }
+        fn _method(code: &str, index: &mut usize) -> Result<AST, ParseError> {
+            todo!()
+        }
+        fn _getter(code: &str, index: &mut usize) -> Result<(AST, AST), ParseError> {
+            todo!()
+        }
+        fn _setter(code: &str, index: &mut usize) -> Result<(AST, AST), ParseError> {
+            todo!()
         }
     
         fn function(code: &str, index: &mut usize) -> Result<AST, ParseError> {
@@ -304,26 +367,20 @@ mod parse {
         }
     
         fn arrow_function(code: &str, index: &mut usize) -> Result<AST, ParseError> {
-            let original_index = *index;
+            let mut projected_index = *index;
+            let success_index = &mut projected_index;
 
-            let args = _arrow_function_args_and_arrow(code, index);
+            let args = _arrow_function_args_and_arrow(code, success_index)?;
 
-            match args {
-                Ok(args) => {
-                    let body = Box::new(statement_or_expression(code, index)?);
+            let body = Box::new(statement_or_expression(code, success_index)?);
 
-                    Ok(AST::Function {
-                        name: None,
-                        args,
-                        body,
-                        is_arrow_function: true,
-                    })
-                },
-                Err(e) => {
-                    *index = original_index;
-                    Err(ParseError::new(code, *index, "Expected arrow function"))
-                },
-            }
+            *index = *success_index;
+            Ok(AST::Function {
+                name: None,
+                args,
+                body,
+                is_arrow_function: true,
+            })
         }
 
         fn _arrow_function_args_and_arrow(code: &str, index: &mut usize) -> Result<Vec<AST>, ParseError> {

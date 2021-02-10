@@ -305,6 +305,12 @@ fn serialize_inner<W: std::fmt::Write>(ast: &AST, options: &SerializerOptions, w
             serialize_inner(x, options, writer, indentation)?;
             writer.write_char(')')?;
         },
+        AST::Class { name, constructor, fields, methods, properties } => {
+            // TODO
+        },
+        AST::ClassField { identifier, expression } => {
+            // TODO
+        },
     }
 
     Ok(())
